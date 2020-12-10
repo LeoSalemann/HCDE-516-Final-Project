@@ -2,29 +2,27 @@
 title: "The Effect of Audio Quality of a Digital Speech Transmission on Perceived Trustworthiness"
 author: "Nina Chen, Christine Dicke, Leo Salemann, Cindy Xu"
 output:
-  html_notebook: default
   pdf_document: default
+  html_notebook: default
 ---
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
-# Step 1: Preparing and Loading Data
+## Step 1: Preparing and Loading Data
 ## Install & Load Supporting Packages
 This is for reading csv files (readr), filtering data frame rows (tidyverse/dplyr), and data conversion (lubridate), source: https://stackoverflow.com/questions/41165867/r-convert-date-from-character-to-datetime
 ```{r}
 install.packages("readr")
 install.packages("tidyverse")
 install.packages("lubridate")
-
 install.packages("ggpubr") 
 install.packages("rstatix")
 
 library(readr)
 library(tidyverse)
 library(lubridate)
-
 library(ggpubr)
 library(rstatix)
 ```
@@ -32,7 +30,7 @@ library(rstatix)
 ## Read Survey Data
 This is to open and read the .csv file.
 ```{r}
-dfSurveyData <- read_csv("Audio_survey_November 15, 2020_15.10.csv")
+dfSurveyData <- read_csv("Audio_survey_November 25, 2020_20.09.csv")
 
 head(dfSurveyData, n=10)
 ```
@@ -62,20 +60,21 @@ dfSurveyData$Progress       <- as.numeric(dfSurveyData$Progress)
 dfSurveyData$Trustworthiness <- as.numeric(dfSurveyData$Trustworthiness)
 dfSurveyData$Interview      <- as.numeric(dfSurveyData$Interview)
 
-dfSurveyData$StartDate <- ymd_hms(dfSurveyData$StartDate)
-dfSurveyData$EndDate <- ymd_hms(dfSurveyData$EndDate)
+dfSurveyData$StartDate <- mdy_hms(dfSurveyData$StartDate)
 dfSurveyData
 ```
 
 ## Cleanse Additional Data (i.e., filter some rows)
 This is for filtering out rows in which...
-* participant did not agree to terms & conditions > (Q13)
-* duration is less than 35 seconds (30 sec for listening; 5 sec for answering)
-* participant didn't say topic of audio clip was an interview
+
+* Participant _did not_ agree to terms & conditions (Q13)
+* Duration is _less than 35 seconds_ (30 sec for listening; 5 sec for answering)
+* Participant didn't say _topic of audio clip was an interview_
 * _Trustworthiness_ or _Interview_ are _NA_
-* Filter out rows where StartDate is before Nov 13
-* Filter out survey = "Survey Preview"
-* Filter for Finished = True
+* Filter out rows where _StartDate is before Nov 13, 9:20AM MT_
+* Filter out _survey = "Survey Preview"_
+* Filter for _Finished = True_
+
 Display results
 ```{r}
 dfSurveyData <- filter(dfSurveyData, !grepl("NOT",Consent))
@@ -83,15 +82,10 @@ dfSurveyData <- filter(dfSurveyData, Duration > 35) #should be 35
 dfSurveyData <- filter(dfSurveyData, grepl("interview",AudioTopic))
 dfSurveyData <- filter(dfSurveyData, !is.na(Trustworthiness))
 dfSurveyData <- filter(dfSurveyData, !is.na(Interview))
-dfSurveyData <- filter(dfSurveyData, StartDate >= as.Date("2020-11-13"))
 dfSurveyData <- filter(dfSurveyData, !grepl("Survey Preview",Status))
-dfSurveyData <- filter(dfSurveyData, grepl("True",Finished))
-```
-
-## Confirm Number of Records Remaining
-This is to obtain the row count for the whole data set.
-```{r}
-nrow(dfSurveyData)
+dfSurveyData <- filter(dfSurveyData, grepl("TRUE",Finished))
+dfSurveyData <- filter(dfSurveyData, StartDate > ("2020-11-13 20:09:13"))
+dfSurveyData
 ```
 
 ## Add Some Custom Columns
@@ -136,8 +130,15 @@ dfSurveyData <- dfSurveyData %>%
 
 dfSurveyData
 ```
+## Confirm Number of Records Remaining
+This is to obtain the row count for the whole data set.
+```{r}
+nrow(dfSurveyData)
+```
+There are a total of 93 records in the dataset that will be analyzed for this study.
 
-#Step 2: Visualizing the Data
+## Step 2: Visualizing the Data
+
 ## Create Boxplot for Trustworthiness vs. Clip Type (Clean, Fuzzy, Glitchy)
 ```{r}
 boxplot(Trustworthiness~clip_type, data = dfSurveyData)
@@ -148,61 +149,76 @@ boxplot(Trustworthiness~clip_type, data = dfSurveyData)
 boxplot(Interview~clip_type, data = dfSurveyData)
 ```
 
-#Step 3: Checking Assumptions (i.e., outliers, normality, homogneity of variance assumption)
+## Determine Number of Records in Each Clip Type
+```{r}
+nrow(dfSurveyData[dfSurveyData$clip_type == "clean",])
+nrow(dfSurveyData[dfSurveyData$clip_type == "fuzz",])
+nrow(dfSurveyData[dfSurveyData$clip_type == "glitch",])
+```
+
+## Step 3: Checking Assumptions (i.e., outliers, normality, homogneity of variance assumption)
 This is to determine whether the data is appropriate for ANOVA and Tukey HSD, source: https://www.datanovia.com/en/lessons/anova-in-r/#check-assumptions
+
 ## Check Outliers (in Trustworthiness)
 ```{r}
 dfSurveyData %>% group_by(clip_type) %>% identify_outliers(Trustworthiness) 
 ```
+As related to Trustworthiness, there are TWO outliers. However, neither of them are extreme outliers, so they were not removed from the dataset.
 
 ## Check Outliers (in Willingness to Interview)
 ```{r}
 dfSurveyData %>% group_by(clip_type) %>% identify_outliers(Interview) 
 ```
+As related to Willingness to Interview, there are THREE outliers. One of these is an extreme outliers; however, it represents 1% of the entire dataset. Therefore, none of the records were removed from the dataset.
 
 ## Check Normality (in Trustworthiness)
 ```{r}
-model <- lm(Trustworthiness~clip_type, data = dfSurveyData)
-ggqqplot(residuals(model))
-shapiro_test(residuals(model))
+ggqqplot(dfSurveyData, "Trustworthiness", facet.by = "clip_type")
 ```
+Majority of the data points are approximately within the reference line, assuming normality of the data.
 
 ## Check Normality (in Willingness to Interview)
 ```{r}
-model2 <- lm(Interview~clip_type, data = dfSurveyData)
-ggqqplot(residuals(model2))
-shapiro_test(residuals(model2))
+ggqqplot(dfSurveyData, "Interview", facet.by = "clip_type")
 ```
+Majority of the data points are approximately within the reference line, assuming normality of the data.
 
-##Check Homogneity of Variance Assumption (in Trustworthiness)
+## Check Homogneity of Variance Assumption (in Trustworthiness)
 ```{r}
-plot(model,1)
+dfSurveyData %>% levene_test(Trustworthiness ~ clip_type)
 ```
+The p-value is >0.05, which is not significant. There is no significant difference between variances across group, assuming homogeneity of variances.
 
-##Check Homogneity of Variance Assumption (in Willingness to Interview)
+## Check Homogneity of Variance Assumption (in Willingness to Interview)
 ```{r}
-plot(model2,1)
+dfSurveyData %>% levene_test(Interview ~ clip_type)
 ```
+The p-value is >0.05, which is not significant. There is no significant difference between variances across group, assuming homogeneity of variances.
 
-#Step 4: Conducting Statistical Analyses
+## Step 4: Conducting Statistical Analyses
+
 ## Conduct One Way ANOVA (Trustworthiness)
 ```{r}
 res.aov <- aov(Trustworthiness ~ clip_type, data = dfSurveyData)
 summary(res.aov)
 ```
+Using a One Way ANOVA, the p-value is <0.05 suggesting there is significant difference among the means of the clip type groups.
 
 ## Conduct Post Hoc Test, Tukey HSD (Trustworthiness)
 ```{r}
 TukeyHSD(res.aov)
 ```
+After conducting Tukey HSD, the only statistical significance is between the Glitch and Fuzz group.
 
 ## Conduct One Way ANOVA (Willingness to Interview)
 ```{r}
 res.aov2 <- aov(Interview ~ clip_type, data = dfSurveyData)
 summary(res.aov2)
 ```
+Using a One Way ANOVA, the p-value is <0.05 suggesting there is significant difference among the means of the clip type groups.
 
 ## Conduct Post Hoc Test, Tukey HSD (Willingness to Interview)
 ```{r}
 TukeyHSD(res.aov2)
 ```
+After conducting Tukey HSD, there is statistical significance between the Clean and Glitch as well as Glitch and Fuzz group.
