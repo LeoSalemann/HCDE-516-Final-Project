@@ -1,16 +1,17 @@
 ---
 title: "The Effect of Audio Quality of a Digital Speech Transmission on Perceived Trustworthiness"
-
 author: "Nina Chen, Christine Dicke, Leo Salemann, Cindy Xu"
-
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
-# Install & Load Supporting Packages
+# Data Load & Prep
+## Install & Load Supporting Packages
 For reading csv files (readr), filtering data frame rows (tidyverse/dplyr)
 ```{r}
 install.packages("readr")
@@ -20,89 +21,273 @@ library(readr)
 library(tidyverse)
 # library(stringr)
 ```
-# Read Survey Data
+
+
+## Read Survey Data
 Open the file; have a look.
 ```{r}
-dfSurveyData <- read_csv("Audio_survey_November 10, 2020_18.47 - Audio_survey_November 10, 2020_18.47.csv")
+dfSurveyData <- read_csv("Audio_survey_November 15, 2020_15.10.csv")
 
 head(dfSurveyData, n=10)
 ```
 
-# Data Cleansing - Remove some junk
+
+## Data Cleansing  
 * Remove extra header rows
-* Remove extra columns (Q5_1, Q5_2, Q5_3)
+* Rename some
+  - _Q13_ to _Consent_
+  - _Q1_ to _AudioTopic_
+  - _Q13_1_ to _Trustworthiness_
+  - _Q15_1_ to _Interview_
+  - _Duration (in seconds)_ to _Duration_
+  - Change textrual columns to numbers
+* Change some string columns to numeric
 * View results
 ```{r}
 dfSurveyData <- dfSurveyData[-c(1,2),]
-dfSurveyData$Q5_1 <- NULL
-dfSurveyData$Q5_2 <- NULL
-dfSurveyData$Q5_3 <- NULL
-dfSurveyData
-```
 
-# Data Cleansing -  Rename some columns
-  - _Q13_ to _Consent_
-  - _Q1_ to _AudioTopic_
-  - _Q3_1_ to _LikertMotivated_
-  - _Q3_2_ to _LikertTrustworty_
-  - _Q3_3_ to _LikertSmart_
-  - _Q7_ to _LikertInterview_
-  - _Duration (in seconds)_ to _Duration_
-```{r}
 names(dfSurveyData)[names(dfSurveyData)=="Q13"]  <- "Consent"
 names(dfSurveyData)[names(dfSurveyData)=="Q1"]   <- "AudioTopic"
-names(dfSurveyData)[names(dfSurveyData)=="Q3_1"] <- "LikertMotivated"
-names(dfSurveyData)[names(dfSurveyData)=="Q3_2"] <- "LikertTrustworty"
-names(dfSurveyData)[names(dfSurveyData)=="Q3_3"] <- "LikertSmart"
-names(dfSurveyData)[names(dfSurveyData)=="Q7"]   <- "LikertInterview"
+names(dfSurveyData)[names(dfSurveyData)=="Q13_1"] <- "Trustworthiness"
+names(dfSurveyData)[names(dfSurveyData)=="Q15_1"]   <- "Interview"
 names(dfSurveyData)[names(dfSurveyData)=="Duration (in seconds)"] <- "Duration"
-dfSurveyData$Duration <- as.numeric(dfSurveyData$Duration)
-dfSurveyData$Progress <- as.numeric(dfSurveyData$Progress)
+
+dfSurveyData$Duration       <- as.numeric(dfSurveyData$Duration)
+dfSurveyData$Progress       <- as.numeric(dfSurveyData$Progress)
+dfSurveyData$Trustworthiness <- as.numeric(dfSurveyData$Trustworthiness)
+dfSurveyData$Interview      <- as.numeric(dfSurveyData$Interview)
+
 dfSurveyData
 ```
 
-# More Cleansing
-* Filter out rows where participant did not agree to terms & conditions. (Q13).
-* Filter out rows where duration is less than 35 seconds (adio clip is 30 seconds; reuore at least 1 second per question.)
-* Filter out rows where clip was not about interview (Q1)
+
+## More Cleansing - Filter some Rows
+Filter out rows where ...
+* participant did not agree to terms & conditions. (Q13).
+* duration is less than 35 seconds (30 sec for listening; 5 sec for answering)
+* participant didn't say topic of audio clip was an interview. 
+* _Trustworthiness_ or _Interview_ are _NA_
+**TODO:** 
+* Filter out rows where StartDate is before Nov 13
+* Filter out survey = "Survey Preview"
+* Filter for Finished = True
+Display results.
 ```{r}
 dfSurveyData <- filter(dfSurveyData, !grepl("NOT",Consent))
-
-dfSurveyData <- filter(dfSurveyData, Duration > 5) #should be 35
+dfSurveyData <- filter(dfSurveyData, Duration > 35) #should be 35
 dfSurveyData <- filter(dfSurveyData, grepl("interview",AudioTopic))
+dfSurveyData <- filter(dfSurveyData, !is.na(Trustworthiness))
+dfSurveyData <- filter(dfSurveyData, !is.na(Interview))
 dfSurveyData
 ```
 
-# Convert Likert Scales
-Change textual responses to numbers.
 
-+------+---+
-|Value |Number |
-+======+===+
-| This | 1 |
-+------+---+
-| That | 2 |
-+------+---+
-
-[the google](www.google.com)
-
+## Done filtering, how many rows left?
+Get the row count for the whole dataset.
 ```{r}
-# names(cars)
+nrow(dfSurveyData)
 ```
 
-# Create a SoundClip column
-Take all the nina_clean, nina_phone, etc clips, and "compress" them into a single
-column that identifies which clip was heard.
 
+## Add Some Custom columns
+* _SoundClip_ identifies which clip the particpant heard
+* _Glitches_ counts how many glitches were the audio clip (0, 5, or 10)
+* _PhoneFuzziness_ counts how many times the Audacity Telephone filter was applied (0, 1, 10)
 
+Use mutate() and the %>% per this cool trick from Stack overflow
+https://stackoverflow.com/questions/4622060/case-statement-equivalent-in-r
 
 ```{r}
-# names(cars)
+
+dfSurveyData <- dfSurveyData %>%
+  mutate(.keep = "all", clip_type = case_when(
+    .$`leo_clean` == "Yes" ~ "clean",
+    .$`leo-phone-01` == "Yes" ~ "phone",
+    .$`leo-phone-10` == "Yes" ~ "phone",
+    .$`leo-glitch-05` == "Yes" ~ "glitch",
+    .$`leo-glitch-10` == "Yes" ~ "glitch",
+    TRUE ~ "unknown"
+  )
+)
+
+dfSurveyData <- filter(dfSurveyData, clip_type != "unknown")
+
+dfSurveyData <- dfSurveyData %>%
+  mutate(.keep = "all", Glitches = case_when(
+    .$`leo_clean` == "Yes" ~ 0,
+    .$`leo-glitch-05` == "Yes" ~ 5,
+    .$`leo-glitch-10` == "Yes" ~ 10,
+    TRUE ~ -1
+  )
+)
+
+dfSurveyData <- dfSurveyData %>%
+  mutate(.keep = "all", PhoneFuzziness = case_when(
+    .$`leo_clean` == "Yes" ~ 0,
+    .$`leo-phone-01` == "Yes" ~ 1,
+    .$`leo-phone-10` == "Yes" ~ 10,
+    TRUE ~ -1
+  )
+)
+
+dfSurveyData
 ```
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+# Do Some Plots
+# TODO: These line plots can be ignored, do box plost instead. 
+# TODO: Use two simple groupnce clean vs. all glitches; and clean vs. all fuzziness.
+## Plot Trustworthiness vs. Glitches
+We expect perceived trustworthiness to _decrease_ as the numbers of glitches in the audio _increasses_
 ```{r}
-# names(cars)
+dfGlitches <- filter(dfSurveyData, dfSurveyData$Glitches >= 0)
+dfGlitches
+summary(dfGlitches$Glitches)
+modelTrustGlitches <- lm(Trustworthiness~Glitches, data=dfGlitches)
+plot(dfGlitches$Glitches, dfGlitches$Trustworthiness)
+abline(modelTrustGlitches)
 ```
+
+
+## Check the Model's R-value
+```{r}
+summary(modelTrustGlitches)
+```
+
+
+# Plot Trustworthiness vs. Phone Fuzziness
+We expect perceived trustworthiness to _decrease_ as the amount of "phone fuzziness" in the audio _increasses_
+
+```{r}
+dfPhoneFuzz <- filter(dfSurveyData, dfSurveyData$PhoneFuzziness >= 0)
+dfPhoneFuzz
+summary(dfPhoneFuzz$PhoneFuzziness)
+modelTrustPhoneFuzz <- lm(Trustworthiness~PhoneFuzziness, data=dfPhoneFuzz)
+plot(dfPhoneFuzz$PhoneFuzziness, dfPhoneFuzz$Trustworthiness)
+abline(modelTrustPhoneFuzz)
+```
+
+
+## Check the Model's R-value
+```{r}
+summary(modelTrustPhoneFuzz)
+```
+
+
+# Let's look at "Would you move on with the Interview?"
+## Plotting "Would you move on with the Interview?" vs. Glitchiness
+```{r}
+modelInterviewGlitches <- lm(Interview~Glitches, data=dfGlitches)
+plot(dfGlitches$Glitches, dfGlitches$Interview)
+abline(modelInterviewGlitches)
+```
+
+
+## Check the Model's R-value
+```{r}
+summary(modelInterviewGlitches)
+```
+
+
+## Plotting "Would you move on with the Interview?" vs. Phone Fuzziness
+```{r}
+modelInterviewPhoneFuzz <- lm(Interview~PhoneFuzziness, data=dfPhoneFuzz)
+plot(dfPhoneFuzz$PhoneFuzziness, dfPhoneFuzz$Interview)
+abline(modelInterviewPhoneFuzz)
+
+```
+
+
+## Check the Model's R-value
+```{r}
+summary(modelInterviewPhoneFuzz)
+```
+
+
+
+# Try some boxplots
+## TODO: Box plost need to be re-done with only two conditions - clean vs. all glitcheas
+## and clean vs. all fuzziness
+## Interviiew ~ Phone Fuzziness
+```{r}
+boxplot(Interview~PhoneFuzziness, data = dfPhoneFuzz)
+abline(modelInterviewPhoneFuzz)
+
+
+```
+
+
+## Trustworthiness ~ Phone Fuzziness
+```{r}
+boxplot(Trustworthiness~PhoneFuzziness, data = dfPhoneFuzz)
+abline(modelTrustPhoneFuzz)
+
+```
+
+
+## Interview ~ Glitches
+```{r}
+boxplot(Interview~Glitches, data = dfGlitches)
+abline(modelInterviewGlitches)
+```
+
+
+## Trustworthinees ~ Phone Fuziness
+```{r}
+boxplot(Trustworthiness~PhoneFuzziness, data = dfPhoneFuzz)
+abline(modelTrustPhoneFuzz) 
+```
+
+
+## Trustworthinees ~ Glitches
+```{r}
+boxplot(Trustworthiness~Glitches, data=dfGlitches)
+abline(modelTrustGlitches)
+```
+
+
+# Final Data Tables
+## Final Glitch Table Outputs
+```{r}
+dfGlitches
+```
+
+
+## Final Phone Fuzz Table
+```{r}
+dfPhoneFuzz
+```
+
+# Try Factorial Manova
+# TODO we should do simple t-tests, once we have our clean vs. glitch, and clean vs. fuzz groupings.  
+# TODO: in our paper we can talk about multiple levels of fuzz and glitch as a way of
+# acheiving ecological validity.
+## Try on Glitches
+Based on the tutorial from here:
+http://www.sthda.com/english/wiki/manova-test-in-r-multivariate-analysis-of-variance#compute-manova-in-r
+
+According to Field pg 733, a p-value less than 0.05 indicates groups differ significantly with respect to the dependent variables.  That suggests a p-value is significant for Interview ~ Glitches (p=0.004), but not Trustowrthiness ~ Glitches (p=0.109)
+
+```{r}
+manovaGlitch <- manova(cbind(Interview, Trustworthiness) ~ Glitches, data=dfGlitches)
+summary(manovaGlitch)
+summary.aov(manovaGlitch)
+```
+
+
+
+## Try on Phone Fuzz
+Based on the tutorial from here:
+http://www.sthda.com/english/wiki/manova-test-in-r-multivariate-analysis-of-variance#compute-manova-in-r
+
+According to Field pg 733, a p-value less than 0.05 indicates groups differ significantly with respect to the dependent variables.  That suggests a p-value is significant for Interview ~ Glitches (p=0.044), but not Trustowrthiness ~ Glitches (p=0.090)
+
+```{r}
+manovaPhoneFuzz <- manova(cbind(Interview, Trustworthiness) ~ PhoneFuzziness, data=dfPhoneFuzz)
+summary(manovaPhoneFuzz)
+summary.aov(manovaPhoneFuzz)
+```
+
+
 
 When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
 
