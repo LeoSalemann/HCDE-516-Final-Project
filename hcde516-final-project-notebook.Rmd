@@ -2,8 +2,8 @@
 title: "The Effect of Audio Quality of a Digital Speech Transmission on Perceived Trustworthiness"
 author: "Nina Chen, Christine Dicke, Leo Salemann, Cindy Xu"
 output:
-  pdf_document: default
   html_notebook: default
+  pdf_document: default
 ---
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
@@ -158,8 +158,19 @@ boxplot(Trustworthiness~clip_type, data = dfSurveyData)
 boxplot(Interview~clip_type, data = dfSurveyData)
 ```
 
+# Find an Appropriate Statiscial Test 
+According to Field, we have ....
 
-# Check for outliers
+* **one continuous outcome variable** Treat Trustworthiness and Would-you-Interview separately, each are a 0.0-10.0 scale.
+
+* **one categorical predictor with more than 2 categories, which are the same entities.** Clip Type is one of {clean, fuzzy, glitchy}
+
+... So Field prescribes a **One-Way Repeated Measures Anova**
+
+Following the procedures from Data Novia at https://www.datanovia.com/en/lessons/repeated-measures-anova-in-r/  
+
+# Do a One-Way Repeated Measures Anova
+## Check for outliers
 ```{r}
 dfSurveyData %>% group_by(clip_type) %>% identify_outliers(Trustworthiness) 
 ```
@@ -190,8 +201,7 @@ ggqqplot(dfSurveyData, "Interview", facet.by = "clip_type")
 Looks like *Would you Continue Interview* is normal for all clip types.
 
 # Split the data so we can do independent t-tests
-*dfGlitches* has all the records with clean and glitchy audio clips; 
-*dfPhoneFuzz*  has all the records with clean and fuzzy audio clips; 
+* dataset will have clean & fuzz in it; the other will have clean & glitch
 ```{r}
 dfGlitches <- filter(dfSurveyData, dfSurveyData$Glitches >= 0)
 dfGlitches
@@ -235,5 +245,15 @@ res.fuzz.interview
 The p-value is 0.2393, more than the 5% threshold, so we CANNOT conclude that phone fuzz significantly degrades perceived trustworthiness of the person speaking. 
 
 
+# BELOW HERE IS JUNK(for now)
 
+# Run the ANOVA Tests
+```{r}
+dfSurveyData$id <- seq.int(nrow(dfSurveyData))
+# dfSurveyData$id <- tibble::rowid_to_column(dfSurveyData, "id")
+# dfSurveyData
+
+res.aov.Trustworthiness <- anova_test(data = dfSurveyData, dv = Trustworthiness, wid = id, within = clip_type)
+get_anova_table(res.aov.Trustworthiness)
+```
 
