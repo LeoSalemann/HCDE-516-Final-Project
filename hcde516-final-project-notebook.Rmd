@@ -10,17 +10,14 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
-# Data Load & Prep
+# Step 1: Preparing and Loading Data
 ## Install & Load Supporting Packages
-For reading csv files (readr), filtering data frame rows (tidyverse/dplyr)
-Also lubridate for date convers, per good ol' stack overflow:
-https://stackoverflow.com/questions/41165867/r-convert-date-from-character-to-datetime
+This is for reading csv files (readr), filtering data frame rows (tidyverse/dplyr), and data conversion (lubridate), source: https://stackoverflow.com/questions/41165867/r-convert-date-from-character-to-datetime
 ```{r}
 install.packages("readr")
 install.packages("tidyverse")
 install.packages("lubridate")
 
-install.packages("tidyverse")
 install.packages("ggpubr") 
 install.packages("rstatix")
 
@@ -28,22 +25,19 @@ library(readr)
 library(tidyverse)
 library(lubridate)
 
-library(tidyverse)
 library(ggpubr)
 library(rstatix)
 ```
 
-
 ## Read Survey Data
-Open the file; have a look.
+This is to open and read the .csv file.
 ```{r}
 dfSurveyData <- read_csv("Audio_survey_November 15, 2020_15.10.csv")
 
 head(dfSurveyData, n=10)
 ```
 
-
-## Data Cleansing  
+## Cleanse Data  
 * Remove extra header rows
 * Rename some Columns
   - _Q13_ to _Consent_
@@ -53,6 +47,7 @@ head(dfSurveyData, n=10)
   - _Duration (in seconds)_ to _Duration_
 * Change some string columns to numeric & dates
 * View results
+
 ```{r}
 dfSurveyData <- dfSurveyData[-c(1,2),]
 
@@ -72,17 +67,16 @@ dfSurveyData$EndDate <- ymd_hms(dfSurveyData$EndDate)
 dfSurveyData
 ```
 
-
-## More Cleansing - Filter some Rows
-Filter out rows where ...
-* participant did not agree to terms & conditions. (Q13).
+## Cleanse Additional Data (i.e., filter some rows)
+This is for filtering out rows in which...
+* participant did not agree to terms & conditions > (Q13)
 * duration is less than 35 seconds (30 sec for listening; 5 sec for answering)
-* participant didn't say topic of audio clip was an interview. 
+* participant didn't say topic of audio clip was an interview
 * _Trustworthiness_ or _Interview_ are _NA_
 * Filter out rows where StartDate is before Nov 13
 * Filter out survey = "Survey Preview"
 * Filter for Finished = True
-Display results.
+Display results
 ```{r}
 dfSurveyData <- filter(dfSurveyData, !grepl("NOT",Consent))
 dfSurveyData <- filter(dfSurveyData, Duration > 35) #should be 35
@@ -90,27 +84,22 @@ dfSurveyData <- filter(dfSurveyData, grepl("interview",AudioTopic))
 dfSurveyData <- filter(dfSurveyData, !is.na(Trustworthiness))
 dfSurveyData <- filter(dfSurveyData, !is.na(Interview))
 dfSurveyData <- filter(dfSurveyData, StartDate >= as.Date("2020-11-13"))
-dfSurveyData <- filter(dfSurveyData, grepl("interview",AudioTopic))
 dfSurveyData <- filter(dfSurveyData, !grepl("Survey Preview",Status))
 dfSurveyData <- filter(dfSurveyData, grepl("True",Finished))
-dfSurveyData
 ```
 
-
-## Done filtering, how many rows left?
-Get the row count for the whole dataset.
+## Confirm Number of Records Remaining
+This is to obtain the row count for the whole data set.
 ```{r}
 nrow(dfSurveyData)
 ```
 
-
-## Add Some Custom columns
-* _SoundClip_ identifies which clip the particpant heard
+## Add Some Custom Columns
+* _SoundClip_ identifies which clip the participant heard
 * _Glitches_ counts how many glitches were the audio clip (0, 5, or 10)
 * _PhoneFuzziness_ counts how many times the Audacity Telephone filter was applied (0, 1, 10)
 
-Use mutate() and the %>% per this cool trick from Stack overflow
-https://stackoverflow.com/questions/4622060/case-statement-equivalent-in-r
+Use mutate() and the %>%, source: https://stackoverflow.com/questions/4622060/case-statement-equivalent-in-r
 
 ```{r}
 
@@ -148,112 +137,72 @@ dfSurveyData <- dfSurveyData %>%
 dfSurveyData
 ```
 
-# Do Some Plots
-## Trusworthiness vs. Clip Type (Clean, Fuzzy, Glitchy)
+#Step 2: Visualizing the Data
+## Create Boxplot for Trustworthiness vs. Clip Type (Clean, Fuzzy, Glitchy)
 ```{r}
 boxplot(Trustworthiness~clip_type, data = dfSurveyData)
 ```
-## Willingess to Interview vs. Clip Type (Clean, Fuzzy, Glitchy)
+
+## Create Boxplot for Willingness to Interview vs. Clip Type (Clean, Fuzzy, Glitchy)
 ```{r}
 boxplot(Interview~clip_type, data = dfSurveyData)
 ```
 
-# Find an Appropriate Statiscial Test 
-According to Field, we have ....
-
-* **one continuous outcome variable** Treat Trustworthiness and Would-you-Interview separately, each are a 0.0-10.0 scale.
-
-* **one categorical predictor with more than 2 categories, which are the same entities.** Clip Type is one of {clean, fuzzy, glitchy}
-
-... So Field prescribes a **One-Way Repeated Measures Anova**
-
-Following the procedures from Data Novia at https://www.datanovia.com/en/lessons/repeated-measures-anova-in-r/  
-
-# Do a One-Way Repeated Measures Anova
-## Check for outliers
+#Step 3: Checking Assumptions (i.e., outliers, normality, homogneity of variance assumption)
+This is to determine whether the data is appropriate for ANOVA and Tukey HSD, source: https://www.datanovia.com/en/lessons/anova-in-r/#check-assumptions
+## Check Outliers (in Trustworthiness)
 ```{r}
 dfSurveyData %>% group_by(clip_type) %>% identify_outliers(Trustworthiness) 
 ```
 
-
-Four outliers in *Trusworthiness*; none extereme.
-
-Try *Interview*
+## Check Outliers (in Willingness to Interview)
 ```{r}
 dfSurveyData %>% group_by(clip_type) %>% identify_outliers(Interview) 
 ```
 
-
-
-No outliers at all.
-
-# Check for Normality with a QQ plot
+## Check Normality (in Trustworthiness)
 ```{r}
-ggqqplot(dfSurveyData, "Trustworthiness", facet.by = "clip_type")
-```
-Looks like  *clean* follows a normal distribution, *glitch* mostly does; and *fuzz* is almost there.
-
-Now check *Interview*
-
-```{r}
-ggqqplot(dfSurveyData, "Interview", facet.by = "clip_type")
-```
-Looks like *Would you Continue Interview* is normal for all clip types.
-
-# Split the data so we can do independent t-tests
-* dataset will have clean & fuzz in it; the other will have clean & glitch
-```{r}
-dfGlitches <- filter(dfSurveyData, dfSurveyData$Glitches >= 0)
-dfGlitches
-```
-```{r}
-dfPhoneFuzz <- filter(dfSurveyData, dfSurveyData$PhoneFuzziness >= 0)
-dfPhoneFuzz
-```
-# Run some T-Tests
-## T-test on the effect of glitchiness on Trustworthiness 
-```{r}
-res.glitches.trust <- t.test(Trustworthiness~clip_type, data = dfGlitches, var.equal = TRUE)
-res.glitches.trust
-```
-The p-value is 0.03114, less than the 5% threshold, so we can conclude that glitches significantly degrade perceived trustworthiness of the person speaking.
-
-## T-test on the effect of glitchiness on Willingness to Proceed with  Interview
-```{r}
-res.glitches.interview <- t.test(Interview~clip_type, data = dfGlitches, var.equal = TRUE)
-res.glitches.interview
+model <- lm(Trustworthiness~clip_type, data = dfSurveyData)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
 ```
 
-The p-value is 0.003221, less than the 5% threshold, so we can conclude that glitches significantly degrade the listener's willingness to continue with the interview. 
-
-
-## T-test on the effect of phone fuzz on Trusworthiness 
+## Check Normality (in Willingness to Interview)
 ```{r}
-res.fuzz.trust <- t.test(Trustworthiness~clip_type, data = dfPhoneFuzz, var.equal = TRUE)
-res.fuzz.trust
-```
-The p-value is 0.8249, more than the 5% threshold, so we CANNOT claim that phone fuzz signficantly degrades perceived trustworthiness of the person speaking. 
-
-
-## T-test on the effect of phone fuzz on Willingness to Proceed with Interview
-```{r}
-res.fuzz.interview <- t.test(Interview~clip_type, data = dfPhoneFuzz, var.equal = TRUE)
-res.fuzz.interview
+model2 <- lm(Interview~clip_type, data = dfSurveyData)
+ggqqplot(residuals(model2))
+shapiro_test(residuals(model2))
 ```
 
-
-The p-value is 0.2393, more than the 5% threshold, so we CANNOT conclude that phone fuzz significantly degrades perceived trustworthiness of the person speaking. 
-
-
-# BELOW HERE IS JUNK(for now)
-
-# Run the ANOVA Tests
+##Check Homogneity of Variance Assumption (in Trustworthiness)
 ```{r}
-dfSurveyData$id <- seq.int(nrow(dfSurveyData))
-# dfSurveyData$id <- tibble::rowid_to_column(dfSurveyData, "id")
-# dfSurveyData
-
-res.aov.Trustworthiness <- anova_test(data = dfSurveyData, dv = Trustworthiness, wid = id, within = clip_type)
-get_anova_table(res.aov.Trustworthiness)
+plot(model,1)
 ```
 
+##Check Homogneity of Variance Assumption (in Willingness to Interview)
+```{r}
+plot(model2,1)
+```
+
+#Step 4: Conducting Statistical Analyses
+## Conduct One Way ANOVA (Trustworthiness)
+```{r}
+res.aov <- aov(Trustworthiness ~ clip_type, data = dfSurveyData)
+summary(res.aov)
+```
+
+## Conduct Post Hoc Test, Tukey HSD (Trustworthiness)
+```{r}
+TukeyHSD(res.aov)
+```
+
+## Conduct One Way ANOVA (Willingness to Interview)
+```{r}
+res.aov2 <- aov(Interview ~ clip_type, data = dfSurveyData)
+summary(res.aov2)
+```
+
+## Conduct Post Hoc Test, Tukey HSD (Willingness to Interview)
+```{r}
+TukeyHSD(res.aov2)
+```
