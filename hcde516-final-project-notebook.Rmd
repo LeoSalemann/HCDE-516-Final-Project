@@ -1,0 +1,109 @@
+---
+title: "The Effect of Audio Quality of a Digital Speech Transmission on Perceived Trustworthiness"
+
+author: "Nina Chen, Christine Dicke, Leo Salemann, Cindy Xu"
+
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+# Install & Load Supporting Packages
+For reading csv files (readr), filtering data frame rows (tidyverse/dplyr)
+```{r}
+install.packages("readr")
+install.packages("tidyverse")
+
+library(readr)
+library(tidyverse)
+# library(stringr)
+```
+# Read Survey Data
+Open the file; have a look.
+```{r}
+dfSurveyData <- read_csv("Audio_survey_November 10, 2020_18.47 - Audio_survey_November 10, 2020_18.47.csv")
+
+head(dfSurveyData, n=10)
+```
+
+# Data Cleansing - Remove some junk
+* Remove extra header rows
+* Remove extra columns (Q5_1, Q5_2, Q5_3)
+* View results
+```{r}
+dfSurveyData <- dfSurveyData[-c(1,2),]
+dfSurveyData$Q5_1 <- NULL
+dfSurveyData$Q5_2 <- NULL
+dfSurveyData$Q5_3 <- NULL
+dfSurveyData
+```
+
+# Data Cleansing -  Rename some columns
+  - _Q13_ to _Consent_
+  - _Q1_ to _AudioTopic_
+  - _Q3_1_ to _LikertMotivated_
+  - _Q3_2_ to _LikertTrustworty_
+  - _Q3_3_ to _LikertSmart_
+  - _Q7_ to _LikertInterview_
+  - _Duration (in seconds)_ to _Duration_
+```{r}
+names(dfSurveyData)[names(dfSurveyData)=="Q13"]  <- "Consent"
+names(dfSurveyData)[names(dfSurveyData)=="Q1"]   <- "AudioTopic"
+names(dfSurveyData)[names(dfSurveyData)=="Q3_1"] <- "LikertMotivated"
+names(dfSurveyData)[names(dfSurveyData)=="Q3_2"] <- "LikertTrustworty"
+names(dfSurveyData)[names(dfSurveyData)=="Q3_3"] <- "LikertSmart"
+names(dfSurveyData)[names(dfSurveyData)=="Q7"]   <- "LikertInterview"
+names(dfSurveyData)[names(dfSurveyData)=="Duration (in seconds)"] <- "Duration"
+dfSurveyData$Duration <- as.numeric(dfSurveyData$Duration)
+dfSurveyData$Progress <- as.numeric(dfSurveyData$Progress)
+dfSurveyData
+```
+
+# More Cleansing
+* Filter out rows where participant did not agree to terms & conditions. (Q13).
+* Filter out rows where duration is less than 35 seconds (adio clip is 30 seconds; reuore at least 1 second per question.)
+* Filter out rows where clip was not about interview (Q1)
+```{r}
+dfSurveyData <- filter(dfSurveyData, !grepl("NOT",Consent))
+
+dfSurveyData <- filter(dfSurveyData, Duration > 5) #should be 35
+dfSurveyData <- filter(dfSurveyData, grepl("interview",AudioTopic))
+dfSurveyData
+```
+
+# Convert Likert Scales
+Change textual responses to numbers.
+
++------+---+
+|Value |Number |
++======+===+
+| This | 1 |
++------+---+
+| That | 2 |
++------+---+
+
+[the google](www.google.com)
+
+```{r}
+# names(cars)
+```
+
+# Create a SoundClip column
+Take all the nina_clean, nina_phone, etc clips, and "compress" them into a single
+column that identifies which clip was heard.
+
+
+
+```{r}
+# names(cars)
+```
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+# names(cars)
+```
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
